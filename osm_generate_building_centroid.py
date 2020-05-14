@@ -3,13 +3,10 @@
 OSM file viewer
 Obtain OSM building nodal coordinate and save in framed structure
 Calculate centroid of the building footprint polygon and export as csv based on building id
-
 docs: https://docs.osmcode.org/pyosmium/latest/index.html
 
 Required package: numpy, panda, matplotlib, osmium, csv
-
 Created on Tue May 5 11:05:21 2020
-
 @author: Jack Li
 """
 
@@ -36,7 +33,6 @@ class OsmHandler(osm.SimpleHandler):
                               n.location.x,
                               len(n.tags)
                               ])
-
     def way(self, w):
        if w.is_closed() and ("building" in w.tags): # check if is building footprint polygon
             for anode in w.nodes:
@@ -47,14 +43,6 @@ class OsmHandler(osm.SimpleHandler):
                                   anode.location.x,     # edge node lon
                                   len(w.tags)           # num of tags
                                   ])
-
-    # def relation(self, r):
-    #     self.osm_data_relation.append(["relation",
-    #                           r.id,
-    #                           r.visible,
-                              
-    #                           len(r.tags)
-    #                           ])
 
 # find centroid of a non self-interacting closed polygon by n nodes
 # @ param pt_x / y_list: list of lat and lon values
@@ -136,11 +124,3 @@ with open(csv_filename, 'w') as csv_file:
         csv_file.write("%s,%s,%s\n"%(key,polygon_centroid_list[key][0],polygon_centroid_list[key][1]))
 
 # output csv file in format 'building_id, [centroid lat x 1e7, centroid lon x 1e7]
-
-
-
-
-
-
-
-
