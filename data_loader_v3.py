@@ -46,7 +46,7 @@ class BuildingDataset(Dataset):
 def fetch_dataloader(types, data_dir, params, device='cpu'):
     dataloaders = {}
 
-    for split in ['train', 'val', 'test']:
+    for split in ['Building_labeled_train_data', 'Building_labeled_val_data', 'Building_labeled_test_data']:
         if split in types:
             path = os.path.join(data_dir, "{}".format(split))
 
