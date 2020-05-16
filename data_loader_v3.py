@@ -8,9 +8,6 @@ args: path
 """
 
 # train transformer
-dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, 'officebuilding': 5, 'retail': 6,
-        'roof': 7}
-
 train_transformer = transforms.Compose([
     transforms.Resize(256),
     transforms.RandomCrop(256),
@@ -32,11 +29,9 @@ class BuildingDataset(Dataset):
 
         for i, file in enumerate(self.filenames):
             for image in os.listdir(file):
-                src = file + image
+                src = os.path.join(file, image)
                 self.images.append(src)
                 self.labels.append(i)
-
-
 
     def __len__(self):
         return len(self.images)
