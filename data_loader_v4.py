@@ -1,6 +1,6 @@
 import os
 import torchvision.transforms as transforms
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 from PIL import Image
 
 """
@@ -45,21 +45,27 @@ class BuildingDataset(Dataset):
 
 
 # load a train, val, text in mini-batch size
-def fetch_dataloader(types, data_dir, params, device='cpu'):
+def fetch_dataloader(types, data_dir, params):
     dataloaders = {}
 
-    for split in ['Building_labeled_train_data', 'Building_labeled_val_data', 'Building_labeled_test_data']:
+    for split in ['train', 'test']:
         if split in types:
             path = os.path.join(data_dir, "{}".format(split))
 
             # use the train_transformer if training data, else use eval_transformer without random flip
-            if split == 'Building_labeled_train_data':
+            if split == 'train':
                 dl = DataLoader(BuildingDataset(path, train_transformer), batch_size=params.batch_size, shuffle=True,
                                         num_workers=params.num_workers, pin_memory=params.cuda)
+                val_dl_length = int(len(dl) * 0.1)
+                train_dl, val_dl = random_split(dl, [int(len(dl) - val_dl_length), val_dl_length])
+                # automatically split val data from train data as 10% of total train data
+                
+                dataloaders[split] = train_dl
+                dataloaders['val'] = val_dl
+                
             else:
                 dl = DataLoader(BuildingDataset(path, eval_transformer), batch_size=params.batch_size, shuffle=False,
                                         num_workers=params.num_workers, pin_memory=params.cuda)
-
-            dataloaders[split] = dl
+                dataloaders[split] = dl
 
     return dataloaders
