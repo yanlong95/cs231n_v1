@@ -1,0 +1,256 @@
+import numpy as np
+import torch.nn as nn
+from torch.utils import model_zoo
+import torch.nn.functional as F
+from torchvision.models.resnet import model_urls
+
+"""
+    Implementation of the popular ResNet50 the following architecture:
+    CONV2D -> BATCHNORM -> RELU -> MAXPOOL -> CONVBLOCK -> IDBLOCK*2 -> CONVBLOCK -> IDBLOCK*3
+    -> CONVBLOCK -> IDBLOCK*5 -> CONVBLOCK -> IDBLOCK*2 -> AVGPOOL -> TOPLAYER
+"""
+def conv3x3(in_planes, out_planes, stride=1, groups=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, groups=groups, bias=False)
+
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+"""
+    Identity block
+"""
+class Identity_block(nn.Module):
+    channel_expansion = 1
+
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None, groups=1, base_width=64):
+        super(Identity_block, self).__init__()
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+        self.conv1 = conv3x3(in_channels, out_channels, stride)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(out_channels, out_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        x_shortcut = x
+
+        # first layer
+        x_out = self.conv1(x)
+        x_out = self.bn1(x_out)
+        x_out = self.relu(x_out)
+
+        # second layer
+        x_out = self.conv2(x_out)
+        x_out = self.bn2(x_out)
+
+        if self.downsample is not None:
+            x_shortcut = self.downsample(x)
+
+        # add shortcut
+        x_out += x_shortcut
+        x_out = self.relu(x_out)
+
+        return x_out
+
+
+"""
+    The convolution block
+"""
+class Conv_block(nn.Module):
+    channel_expansion = 4
+
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None, groups=1, base_width=64):
+        super(Conv_block, self).__init__()
+
+        width = int(out_channels * (base_width / 64.)) * groups
+
+        self.conv1 = conv1x1(in_channels, width)
+        self.bn1 = nn.BatchNorm2d(width)
+        self.conv2 = conv3x3(width, width, stride, groups)
+        self.bn2 = nn.BatchNorm2d(width)
+        self.conv3 = conv1x1(width, out_channels * self.channel_expansion)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.channel_expansion)
+        self.relu =nn.ReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        x_shortcut = x
+
+        # first layer
+        x_out = self.conv1(x)
+        x_out = self.bn1(x_out)
+        x_out = self.relu(x_out)
+
+        # second later
+        x_out = self.conv2(x_out)
+        x_out = self.bn2(x_out)
+        x_out = self.relu(x_out)
+
+        # third layer
+        x_out = self.conv3(x_out)
+        x_out = self.bn3(x_out)
+
+        if self.downsample is not None:
+            x_shortcut = self.downsample(x)
+
+        # add shortcut
+        x_out += x_shortcut
+        x_out = self.relu(x_out)
+
+        return x_out
+
+"""
+The ResNet class, which group a batch of blocks together
+"""
+class ResNet(nn.Module):
+
+    def __init__(self, params, block, stages, num_classes=8, zero_init_residual=False, groups=1, width_per_group=64):
+        super(ResNet, self).__init__()
+
+        self.in_channel = 64
+        self.groups = groups
+        self.base_width = width_per_group
+
+        self.conv1 = nn.Conv2d(3, self.in_channel, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(self.in_channel)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+
+        self.stage1 = self._make_layer(block, 64, stages[0])
+        self.stage2 = self._make_layer(block, 128, stages[1], stride=2)
+        self.stage3 = self._make_layer(block, 256, stages[2], stride=2)
+        self.stage4 = self._make_layer(block, 512, stages[3], stride=2)
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * block.channel_expansion, num_classes)
+        # self.dropout = nn.Dropout(p=params.dropout_rate, inplace=True)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                # nn.init.xavier_normal_(m.weight)
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+        # No idea why, but may be delete later
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Conv_block):
+                    nn.init.constant_(m.bn3.weight, 0)
+                elif isinstance(m, Identity_block):
+                    nn.init.constant_(m.bn2.weight, 0)
+
+    def _make_layer(self, block, out_channel, blocks, stride=1, norm_layer=None):
+        downsample = None
+        if stride != 1 or self.in_channel != out_channel * block.channel_expansion:
+            downsample = nn.Sequential(conv1x1(self.in_channel, out_channel * block.channel_expansion, stride),
+                nn.BatchNorm2d(out_channel * block.channel_expansion), )
+
+        layers = []
+        layers.append(block(self.in_channel, out_channel, stride, downsample, self.groups, self.base_width, ))
+        self.in_channel = out_channel * block.channel_expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.in_channel, out_channel, groups=self.groups, base_width=self.base_width))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x = self.stage1(x)
+        x = self.stage2(x)
+        x = self.stage3(x)
+        x = self.stage4(x)
+
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        # x = self.dropout(x)
+        x = F.log_softmax(x, dim=1)
+
+        return x
+
+
+def resnet18(params, num_classes, pretrained=False, **kwargs):
+    model = ResNet(params, Identity_block, [2, 2, 2, 2], num_classes=num_classes, **kwargs)
+
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet18']))
+
+    return model
+
+
+def resnet34(params, num_classes, pretrained=False, **kwargs):
+    model = ResNet(params, Identity_block, [3, 4, 6, 3], num_classes=num_classes, **kwargs)
+
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet34']))
+
+    return model
+
+
+"""
+    create resnet50
+"""
+def resnet50(params, num_classes, pretrained=False, **kwargs):
+    model = ResNet(params, Conv_block, [3, 4, 6, 3], num_classes, **kwargs)
+
+    # used for bughole detection -- need to implement
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
+
+    return model
+
+
+def resnet101(params, num_classes, pretrained=False, **kwargs):
+    model = ResNet(params, Conv_block, [3, 4, 23, 3], num_classes, **kwargs)
+
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet101']))
+
+    return model
+
+
+def resnet152(params, num_classes, pretrained=False, **kwargs):
+    model = ResNet(params, Conv_block, [3, 8, 36, 3], num_classes, **kwargs)
+
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
+
+    return model
+
+
+
+def accuracy(outputs, labels):
+    """
+    Compute the accuracy, given the outputs and labels for all images.
+
+    Args:
+        outputs: (np.ndarray) dimension batch_size x 6 - log softmax output of the model
+        labels: (np.ndarray) dimension batch_size, where each element is a value in [0, 1, 2, 3, 4, 5]
+
+    Returns: (float) accuracy in [0,1]
+    """
+    outputs = np.argmax(outputs, axis=1)
+    return np.sum(outputs==labels) / float(labels.size)
+
+metrics = {
+    'accuracy': accuracy,
+           }
+
+
+
+
+
+
+
+
+
+
