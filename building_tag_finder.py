@@ -27,28 +27,33 @@ df_lat_lon['tag'] = "" # make a new tag column
 # enabling overpass api #
 api = overpy.Overpass()
 
-
 with tqdm(total=len(df_lat_lon)) as t:
     for index, row in df_lat_lon.iterrows():
         coord = row[['lat', 'lon']] # string in series
-        input_str = "way['building'](around: 25, " + coord.iloc[0] + "," + coord.iloc[1] + ");out;" # refer to overpass api
-        # around: radius, target_pt_lat, target_pt_lon
-        
+        radius = 10
+        # see overpass api --> [around: radius, target_pt_lat, target_pt_lon]
+        input_str = "way['building'](around: " + str(radius) + ", " + coord.iloc[0] + "," + coord.iloc[1] + ");out;"
         result = api.query(input_str)
         
-        # find building tag in way element 
+        # if no target in radius, increase radius until find one
+        while len(result.ways) == 0:
+            radius += 5
+            input_str = "way['building'](around: " + str(radius) + ", " + coord.iloc[0] + "," + coord.iloc[1] + ");out;"
+            result = api.query(input_str) # requery
+        
+        # find building tag in way element
         building_category = result.ways[0].tags.get('building')
         
         # append tag to dataframe
         row['tag'] = building_category
-        # saving at every 1000 iteration
-        if index % 1000 == 0 and index != 0:
+        
+        # saving at every 500 iteration
+        if index % 500 == 0 and index != 0:
             print("...saving checkpoint...")
             df_lat_lon.to_csv(filename[:-4] + '-category_labelled.csv')
             
         t.update()
-        
-        
+              
 print("...saving final result...")
 df_lat_lon.to_csv(filename[:-4] + '-category_labelled.csv')
 print("saving done!")
