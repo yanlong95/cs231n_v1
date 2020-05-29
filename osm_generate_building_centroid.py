@@ -52,7 +52,7 @@ class OsmHandler(osm.SimpleHandler):
                            'warehouse',
                            'office', 
                            'retail',
-                           'hotel',
+                           #'hotel',
                            'roof',
                            #'yes' # this is selected only if the filter can't generate enough building
                            ]
@@ -144,7 +144,7 @@ def generate_centroid_dataframe(input_dict):
 osmhandler = OsmHandler()
 # scan the input file and fills the handler list accordingly
 PATH = "C:/Users/jack_minimonster/Documents/231n_dataset/BIC_GSV/data_query/osm_file/"
-filename = "alabama.osm.pbf"
+filename = "georgia.osm.pbf"
 
 print('...reading osm file...')
 print()
@@ -156,20 +156,25 @@ data_colnames_way = ['type', 'id',
 df_osm_way = pd.DataFrame(osmhandler.osm_data_way, columns=data_colnames_way)
 df_osm_way = df_osm_way.sort_values(by=['type', 'id'])
 
-print('...construct osm dataframe...')
+print('...saving osm file to csv...')
+print ()
+# save the whole dataframe file to csv
+df_osm_way.to_csv('complete-' + filename[:-8] + '.csv')
+
+print('...regrouping osm dataframe...')
 df_osm_grouped = df_osm_way.groupby('building type')
 
 # loop over grouped osm file per building type and find centroid of each building footprint of this type
 for group_name, group_value in df_osm_grouped:
-    print('...get building group...')
+    print('...get building group - ' + group_name + '...')
     df_osm_building_group = df_osm_grouped.get_group(group_name)
     # convert dataframe to dictionary
     polygon_list_building_group = polygon_node_dataframe_to_dict(df_osm_building_group)
     
     # randomly pick certain number of examples from the full building list
     print('...randomly selecting building...')
-    num_sample = 400
-    if num_sample > len(polygon_list_building_group):
+    num_sample = 1000
+    if num_sample > len(polygon_list_building_group): # obtain enough picture if total instances < num_samples
         num_sample = len(polygon_list_building_group)
     polygon_list_building_group_sample = dict(random.sample(polygon_list_building_group.items(), num_sample))
     
@@ -177,10 +182,8 @@ for group_name, group_value in df_osm_grouped:
     print('...calculating centroid...')
     polygon_centroid_df = generate_centroid_dataframe(polygon_list_building_group_sample)
     
-
-    csvname = filename[:-8] + '-' + str(group_name)
-
     # # save the centroid lat lon information as csv file
+    csvname = filename[:-8] + '-' + str(group_name)
     print('...saving csv: ' + csvname + '...')
     polygon_centroid_df.to_csv(csvname + '.csv')
     print()
