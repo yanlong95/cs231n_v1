@@ -31,7 +31,8 @@ api = overpy.Overpass()
 with tqdm(total=len(df_lat_lon)) as t:
     for index, row in df_lat_lon.iterrows():
         coord = row[['lat', 'lon']] # string in series
-        input_str = "way['building'](around: 10, " + coord.iloc[0] + "," + coord.iloc[1] + ");out;"
+        input_str = "way['building'](around: 25, " + coord.iloc[0] + "," + coord.iloc[1] + ");out;" # refer to overpass api
+        # around: radius, target_pt_lat, target_pt_lon
         
         result = api.query(input_str)
         
