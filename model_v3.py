@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.utils import model_zoo
 import torch.nn.functional as F
 from torchvision.models.resnet import model_urls
-from sklearn.metrics import f1_score
+import sklearn.metrics as skm
 
 """
     Implementation of the popular ResNet50 the following architecture:
@@ -19,6 +19,90 @@ def conv1x1(in_planes, out_planes, stride=1):
 """
     Identity block
 """
+class vgg16(nn.Module):
+    def __init__(self, params, num_classes=8):
+        super(vgg16, self).__init__()
+        self.conv11 = conv3x3(in_planes=3, out_planes=64, stride=1)
+        self.conv12 = conv3x3(in_planes=64, out_planes=64, stride=1)
+
+        self.conv21 = conv3x3(in_planes=64, out_planes=128, stride=1)
+        self.conv22 = conv3x3(in_planes=128, out_planes=128, stride=1)
+
+        self.conv31 = conv3x3(in_planes=128, out_planes=256, stride=1)
+        self.conv32 = conv3x3(in_planes=256, out_planes=256, stride=1)
+        self.conv33 = conv3x3(in_planes=256, out_planes=256, stride=1)
+
+        self.conv41 = conv3x3(in_planes=256, out_planes=512, stride=1)
+        self.conv42 = conv3x3(in_planes=512, out_planes=512, stride=1)
+        self.conv43 = conv3x3(in_planes=512, out_planes=512, stride=1)
+
+        self.conv51 = conv3x3(in_planes=512, out_planes=512, stride=1)
+        self.conv52 = conv3x3(in_planes=512, out_planes=512, stride=1)
+        self.conv53 = conv3x3(in_planes=512, out_planes=512, stride=1)
+
+        self.fc1 = nn.Linear(7 * 7 * 512, 4096)
+        self.fc2 = nn.Linear(4096, 4096)
+        self.fc3 = nn.Linear(4096, num_classes)
+
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.dropout = nn.Dropout(p=params.dropout_rate, inplace=True)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x_out = self.conv11(x)
+        x_out = self.relu(x_out)
+        x_out = self.conv12(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.maxpool(x_out)
+
+        x_out = self.conv21(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv22(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.maxpool(x_out)
+
+        x_out = self.conv31(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv32(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv33(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.maxpool(x_out)
+
+        x_out = self.conv41(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv42(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv43(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.maxpool(x_out)
+
+        x_out = self.conv51(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv52(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.conv53(x_out)
+        x_out = self.relu(x_out)
+        x_out = self.maxpool(x_out)
+
+        x_out = x_out.view(x_out.size(0), -1)
+        x_out = self.fc1(x_out)
+        # x_out = self.dropout(x_out)
+        x_out = self.fc2(x_out)
+        # x_out = self.dropout(x_out)
+        x_out = self.fc3(x_out)
+        # x_out = self.dropout(x_out)
+        x_out = F.log_softmax(x_out, dim=1)
+
+        return x_out
+
 class Identity_block(nn.Module):
     channel_expansion = 1
 
@@ -132,7 +216,6 @@ class ResNet(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                # nn.init.xavier_normal_(m.weight)
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -173,7 +256,7 @@ class ResNet(nn.Module):
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        x = self.dropout(x)
+        # x = self.dropout(x)
         x = F.log_softmax(x, dim=1)
 
         return x
@@ -227,6 +310,8 @@ def resnet152(params, num_classes, pretrained=False, **kwargs):
 
     return model
 
+# def vgg16(params, num_classes, pretrained=False, **kwargs):
+
 
 
 def accuracy(outputs, labels):
@@ -242,19 +327,22 @@ def accuracy(outputs, labels):
     outputs = np.argmax(outputs, axis=1)
     return np.sum(outputs==labels) / float(labels.size)
 
+def confusion_matrix(outputs, labels):
+    outputs = np.argmax(outputs, axis=1)
+    return skm.confusion_matrix(labels, outputs, labels=[0,1,2,3,4,5,6,7], normalize='true')
 
-def f1score_avg(outputs, labels):
+def classification_report(outputs, labels, output_dict, zero_division=0):
     outputs = np.argmax(outputs, axis=1)
     # f1 score = 2 * (precision * recall) / (precision + recall)
     # precision = tp / (tp + fp)
     # recall = tp / (tp + fn)
     # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html
-    return f1_score(labels, outputs, average='macro')
-
+    return skm.classification_report(labels, outputs, labels=[0,1,2,3,4,5,6,7], output_dict=output_dict)
+# ['0','1','2','3','4','5','6','7']
+    
 # metrics for evaluation and result output
 metrics = {
     'accuracy': accuracy,
-    'avg f1score': f1score_avg,
            }
 
 
