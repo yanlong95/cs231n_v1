@@ -45,7 +45,7 @@ class BuildingDatasetWithRegion(Dataset):
     def __getitem__(self, idx):
         image = Image.open(self.images[idx])
         image = self.transform(image)
-        return image, self.labels_type[idx]
+        return image, self.labels_type[idx], self.labels_region[idx]
 
 
 # load a train, val, text in mini-batch size
@@ -63,19 +63,12 @@ def fetch_dataloader(types, data_dir, params):
                 val_dl_length = int(len(dl) * 0.1)
                 train_dl, val_dl = random_split(dl, [int(len(dl) - val_dl_length), val_dl_length])
                 # automatically split val data from train data as 10% of total train data
-                
-                dataloaders[split] = train_dl
-                dataloaders['val'] = val_dl
-                
+
+                dataloaders[split] = train_dl.dataset
+                dataloaders['val'] = val_dl.dataset
             else:
                 dl = DataLoader(BuildingDatasetWithRegion(path, eval_transformer), batch_size=params.batch_size, shuffle=False,
                                         num_workers=params.num_workers, pin_memory=params.cuda)
                 dataloaders[split] = dl
 
     return dataloaders
-
-if __name__ == '__main__':
-    a = BuildingDatasetWithRegion('small_region_data/train', train_transformer)
-    print(a.images)
-    print(a.labels_region)
-    print(len(a.images))
