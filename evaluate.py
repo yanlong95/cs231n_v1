@@ -14,7 +14,7 @@ import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default='dataset/full_data',
+parser.add_argument('--data_dir', default='dataset/full_region_data_california',
                     help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model',
                     help="Directory containing params.json")
@@ -95,9 +95,9 @@ if __name__ == '__main__':
     params.cuda = True     # use GPU is available
 
     # Set the random seed for reproducible experiments
-    # torch.manual_seed(230)
-    # if params.cuda:
-    #     torch.cuda.manual_seed(230)
+    torch.manual_seed(230)
+    if params.cuda:
+        torch.cuda.manual_seed(230)
 
     # Get the logger
     utils.set_logger(os.path.join(args.model_dir, 'evaluate.log'))
@@ -106,16 +106,16 @@ if __name__ == '__main__':
     logging.info("Creating the dataset...")
 
     # fetch dataloaders
-    dataloaders = data_loader.fetch_dataloader(['train'], args.data_dir, params)
-    test_dl = dataloaders['val']
+    dataloaders = data_loader.fetch_dataloader(['test'], args.data_dir, params)
+    test_dl = dataloaders['test']
 
     logging.info("- done.")
 
     # Define the model
-    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=False).to(device)
+    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
 
     critierion = torch.nn.CrossEntropyLoss()
     metrics = net.metrics
