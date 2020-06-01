@@ -14,7 +14,7 @@ import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default='dataset/full_region_data_california',
+parser.add_argument('--data_dir', default='dataset/full_data',
                     help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model',
                     help="Directory containing params.json")
