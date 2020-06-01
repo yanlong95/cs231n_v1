@@ -150,16 +150,6 @@ def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, criti
     # save best validation F1 score plot
     visualize.plot_individual_label_f1score(best_val_metrics)
 
-# load the class label
-# file_name = 'categories_places365.txt'
-# if not os.access(file_name, os.W_OK):
-#     synset_url = 'https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt'
-#     os.system('wget ' + synset_url)
-# classes = list()
-# with open(file_name) as class_file:
-#     for line in class_file:
-#         classes.append(line.strip().split(' ')[0][3:])
-# classes = tuple(classes)
 
 dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, 'officebuilding': 5, 'retail': 6,
         'roof': 7}
@@ -167,9 +157,9 @@ dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, '
 if __name__ == '__main__':
     args = parser.parse_args()
     
-    path = 'dataset/full_data' # change to the correct data path
-    json_path = 'model/params.json'
-    assert os.path.isfile(json_path), "No json configuration file found at {}".format(json_path)
+    json_path = os.path.join(args.model_dir, 'params.json')
+    assert os.path.isfile(
+        json_path), "No json configuration file found at {}".format(json_path)
     params = utils.Params(json_path)
     
     # true if use GPU
@@ -180,7 +170,7 @@ if __name__ == '__main__':
     logging.info("Loading the datasets...")
 
     # load data
-    dataloaders = data_loader.fetch_dataloader(['train', 'test'], path, params)
+    dataloaders = data_loader.fetch_dataloader(['train', 'test'], args.data_dir, params)
     train_dl = dataloaders['train']
     val_dl = dataloaders['val']
     test_dl = dataloaders['test']
@@ -193,7 +183,6 @@ if __name__ == '__main__':
     # change CNN architecture
     model = net.resnet50(params, 8).to(device)
     # model = net.vgg16(params, 8).to(device)
-    # model = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False).to(device)
     # model = torch.nn.DataParallel(model)
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=False).to(device)
 
