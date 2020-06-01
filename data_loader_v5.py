@@ -7,6 +7,8 @@ from PIL import Image
 args: path
 """
 
+dict = {'al': 0, 'ca': 1, 'pa': 2}
+
 # train transformer
 train_transformer = transforms.Compose([
     transforms.Resize(256),
@@ -45,7 +47,7 @@ class BuildingDatasetWithRegion(Dataset):
     def __getitem__(self, idx):
         image = Image.open(self.images[idx])
         image = self.transform(image)
-        return image, self.labels_type[idx], self.labels_region[idx]
+        return image, self.labels_type[idx], dict[self.labels_region[idx]]
 
 
 # load a train, val, text in mini-batch size
