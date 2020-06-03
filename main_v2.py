@@ -15,8 +15,8 @@ from PIL import Image
 
 import utils
 import data_loader_v5 as data_loader
-import model_v4 as net
-from evaluate import evaluate
+import model_v5 as net
+from evaluate_v2 import evaluate
 import visualize
 
 
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     params = utils.Params(json_path)
     
     # true if use GPU
-    params.cuda = True
+    params.cuda = torch.cuda.is_available()
 
     # turn alpha (a*L1 + (1-a)*L2)
     params.alpha = 0.7

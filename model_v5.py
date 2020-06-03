@@ -314,11 +314,16 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        x = self.dropout(x)
-        x = F.log_softmax(x, dim=1)
 
-        return x
+        x1 = self.fc(x)
+        x1 = self.dropout(x1)
+        x1 = F.log_softmax(x1, dim=1)
+
+        x2 = self.fc(x)
+        x2 = self.dropout(x2)
+        x2 = F.log_softmax(x2, dim=1)
+
+        return x1, x2
 
 
 def resnet18(params, num_classes, pretrained=False, **kwargs):
@@ -386,6 +391,7 @@ def accuracy(outputs, labels):
     Returns: (float) accuracy in [0,1]
     """
     outputs = np.argmax(outputs, axis=1)
+    print(labels.size)
     return np.sum(outputs == labels) / float(labels.size)
 
 
