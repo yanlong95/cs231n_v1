@@ -21,7 +21,7 @@ import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default= 'dataset/small_region_data' , help="Directory containing the dataset")
+parser.add_argument('--data_dir', default= 'dataset/full_region_data' , help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model', help="Directory containing params.json")
 parser.add_argument('--restore_file', default=None,
                     help="Optional, name of the file in --model_dir containing weights to reload before training")  # 'best' or 'train'
@@ -59,7 +59,7 @@ def train(model, dataloader, optimizer, critierion, metrics, params):
             if i % params.save_summary_steps == 0:
                 # extract data from torch Variable, move to cpu, convert to numpy arrays
                 output_type_batch = output_type_batch.data.cpu().numpy()
-                labels_region_batch = labels_region_batch.data.cpu().numpy()
+                labels_type_batch = labels_type_batch.data.cpu().numpy()
 
                 # compute all metrics on this batch
                 summary_batch = {metric: metrics[metric](output_type_batch, labels_type_batch) for metric in metrics}
@@ -69,6 +69,7 @@ def train(model, dataloader, optimizer, critierion, metrics, params):
                 class_report = net.classification_report(output_type_batch, labels_type_batch, output_dict=True)
                 for key in class_report:
                     if len(key) == 1:
+                        # type label: {'apartment': 0, 'church': 1, 'house': 2, 'industrial': 3, 'officebuilding': 4, 'retail': 5, 'roof': 6}
                         summary_batch['f1score-' + key] = np.float64(class_report[key]['f1-score'])
                 
                 summ.append(summary_batch)
@@ -164,8 +165,9 @@ def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, criti
 #         classes.append(line.strip().split(' ')[0][3:])
 # classes = tuple(classes)
 
-dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, 'officebuilding': 5, 'retail': 6,
-        'roof': 7}
+dict_type = {'apartment': 0, 'church': 1, 'house': 2, 'industrial': 3, 'officebuilding': 4, 'retail': 5,
+        'roof': 6}
+dict_region = {'ca': 0, 'ne': 1, 'se': 2}
 
 if __name__ == '__main__':
     args = parser.parse_args()

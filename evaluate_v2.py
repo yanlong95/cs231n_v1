@@ -8,13 +8,13 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 import utils
-import model_v4 as net
-import data_loader_v4 as data_loader
+import model_v5 as net
+import data_loader_v5 as data_loader
 import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default='dataset/small_region_data',
+parser.add_argument('--data_dir', default='dataset/full_region_data',
                     help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model',
                     help="Directory containing params.json")
@@ -114,7 +114,7 @@ if __name__ == '__main__':
     logging.info("- done.")
 
     # Define the model
-    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
+    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet34(params, 8)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=False).to(device)
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     # Evaluate
     test_metrics = evaluate(model, critierion, test_dl, metrics, params)
     
-    visualize.plot_individual_label_f1score(test_metrics)
+    visualize.plot_individual_label_f1score(test_metrics,type='test')
     
     save_path = os.path.join(
         args.model_dir, "metrics_test_{}.json".format(args.restore_file))

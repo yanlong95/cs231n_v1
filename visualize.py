@@ -42,13 +42,9 @@ def plot_loss(loss_series):
     
     
     
-def plot_individual_label_f1score(val_metrics):
-    """
-    dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, 'officebuilding': 5, 'retail': 6,
-        'roof': 7}
-    """
-    classes = ['apartments', 'church', 'garage', 'house', 'industrial', 
-               'office', 'retail', 'roof']
+def plot_individual_label_f1score(val_metrics, type='val'):
+
+    classes = ['apartments', 'church', 'house', 'industrial', 'office', 'retail', 'roof']
     f1score = []
     for key in val_metrics:
         if 'f1score' in key:
@@ -57,9 +53,9 @@ def plot_individual_label_f1score(val_metrics):
     fig, ax = plt.subplots()
     ax.bar(classes, f1score)
     ax.set(title="Best Validation F1 Score",
-           ylabel='F1 SCore',
+           ylabel='F1 Score',
            xlabel='Building Categories',
            ylim=[0, 1])
     plt.xticks(rotation=90)
     # plt.show()
-    fig.savefig('f1score.png', dpi=fig.dpi)
+    fig.savefig('f1score_' + type + '.png', dpi=fig.dpi)

@@ -391,13 +391,12 @@ def accuracy(outputs, labels):
     Returns: (float) accuracy in [0,1]
     """
     outputs = np.argmax(outputs, axis=1)
-    print(labels.size)
     return np.sum(outputs == labels) / float(labels.size)
 
 
 def confusion_matrix(outputs, labels):
     outputs = np.argmax(outputs, axis=1)
-    return skm.confusion_matrix(labels, outputs, labels=[0, 1, 2, 3, 4, 5, 6, 7], normalize='true')
+    return skm.confusion_matrix(labels, outputs, labels=[0, 1, 2, 3, 4, 5, 6], normalize='true')
 
 
 def classification_report(outputs, labels, output_dict, zero_division=1):
@@ -406,10 +405,10 @@ def classification_report(outputs, labels, output_dict, zero_division=1):
     # precision = tp / (tp + fp)
     # recall = tp / (tp + fn)
     # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html
-    return skm.classification_report(labels, outputs, labels=[0, 1, 2, 3, 4, 5, 6, 7], output_dict=output_dict)
+    return skm.classification_report(labels, outputs, labels=[0, 1, 2, 3, 4, 5, 6], output_dict=output_dict)
 
 
-# ['0','1','2','3','4','5','6','7']
+# ['0','1','2','3','4','5','6']
 
 # metrics for evaluation and result output
 metrics = {
