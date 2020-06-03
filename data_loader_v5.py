@@ -7,21 +7,21 @@ from PIL import Image
 args: path
 """
 
-dict = {'al': 0, 'ca': 1, 'pa': 2}
+dict = {'ca': 0, 'ne': 1, 'se': 2}
 
 # train transformer
 train_transformer = transforms.Compose([
     transforms.Resize(256),
     transforms.RandomCrop(256),
     transforms.RandomHorizontalFlip(),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4793, 0.4921, 0.4731), (0.0670, 0.0837, 0.1140))])
+    transforms.ToTensor()])
+    # transforms.Normalize((0.4793, 0.4921, 0.4731), (0.0670, 0.0837, 0.1140))])
 
 # evl and test transformer
 eval_transformer = transforms.Compose([
     transforms.Resize(256),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4789, 0.4905, 0.4740), (0.2007, 0.2004, 0.2277))])
+    transforms.ToTensor()])
+    # transforms.Normalize((0.4789, 0.4905, 0.4740), (0.2007, 0.2004, 0.2277))])
 
 class BuildingDatasetWithRegion(Dataset):
     def __init__(self, data_dir, transform):

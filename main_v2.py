@@ -13,25 +13,25 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 
-import utils_v2
+import utils
 import data_loader_v5 as data_loader
 import model_v4 as net
-from evaluate_v2 import evaluate
+from evaluate import evaluate
 import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default= 'small_region_data', help="Directory containing the dataset")
+parser.add_argument('--data_dir', default= 'dataset/small_region_data' , help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model', help="Directory containing params.json")
 parser.add_argument('--restore_file', default=None,
                     help="Optional, name of the file in --model_dir containing weights to reload before training")  # 'best' or 'train'
 
 
-def train(model, model2, dataloader, optimizer, optimizer2, critierion, metrics, params):
+def train(model, dataloader, optimizer, critierion, metrics, params):
     model.train()
 
     summ = []
-    avg_loss = utils_v2.Running_avg()
+    avg_loss = utils.Running_avg()
     training_step = len(dataloader)
     
     with tqdm(total=training_step) as t:
@@ -46,23 +46,19 @@ def train(model, model2, dataloader, optimizer, optimizer2, critierion, metrics,
             # set images, labels as training variables
             images_batch, labels_type_batch, labels_region_batch = Variable(images_batch), Variable(labels_type_batch), Variable(labels_region_batch)
 
-            output_type_batch = model(images_batch)
-            output_region_batch = model2(images_batch)
+            output_type_batch, output_region_batch = model(images_batch)
             loss1 = critierion(output_type_batch, labels_type_batch)
-            loss2 = criterion(output_region_batch, labels_region_batch)
-            loss = params.alpha * loss1 + (1-params.alpha) * loss2
+            loss2 = critierion(output_region_batch, labels_region_batch)
+            loss = params.alpha * loss1 + (1 - params.alpha) * loss2
 
             optimizer.zero_grad()
-            optimizer2.zero_grad()
             loss.backward()
             optimizer.step()
-            optimizer2.step()
             
 
             if i % params.save_summary_steps == 0:
                 # extract data from torch Variable, move to cpu, convert to numpy arrays
                 output_type_batch = output_type_batch.data.cpu().numpy()
-                labels_type_batch = labels_type_batch.data.cpu().numpy()
                 labels_region_batch = labels_region_batch.data.cpu().numpy()
 
                 # compute all metrics on this batch
@@ -91,13 +87,13 @@ def train(model, model2, dataloader, optimizer, optimizer2, critierion, metrics,
 
     
     
-def train_and_evaluate(model, model2, train_dataloader, val_dataloader, optimizer, optimizer2, critierion, metrics, params, model_dir,
+def train_and_evaluate(model, train_dataloader, val_dataloader, optimizer, critierion, metrics, params, model_dir,
                        restore_file=None):
     # reload weights from restore_file if specified
     if restore_file is not None:
         restore_path = os.path.join(args.model_dir, args.restore_file + '.pth.tar')
         logging.info("Restoring parameters from {}".format(restore_path))
-        utils_v2.load_checkpoint(restore_path, model, optimizer)
+        utils.load_checkpoint(restore_path, model, optimizer)
         
     best_val_acc = 0.0
     best_val_metrics = []
@@ -110,29 +106,24 @@ def train_and_evaluate(model, model2, train_dataloader, val_dataloader, optimize
         logging.info("Epoch {}/{}".format(epoch + 1, params.num_epochs))
         
         # train model
-        train_metrics = train(model, model2, train_dataloader, optimizer, optimizer2, critierion, metrics, params)
+        train_metrics = train(model, train_dataloader, optimizer, critierion, metrics, params)
         
         # learning rate exponential decay
         params.learning_rate = learning_rate_0 * np.exp(-params.exp_decay_k * epoch)
         
         # evaluate
-        val_metrics = evaluate(model, model2, critierion, val_dataloader, metrics, params)
+        val_metrics = evaluate(model, critierion, val_dataloader, metrics, params)
         
         # find accuracy from validation dataset
         val_acc = val_metrics['accuracy']
         is_best = val_acc >= best_val_acc
-
+        
         # save weights
-        utils_v2.save_checkpoint({'epoch': epoch + 1,
+        utils.save_checkpoint({'epoch': epoch + 1,
                                'state_dict': model.state_dict(),
                                'optim_dict': optimizer.state_dict()},
-                                 is_best=is_best,
-                                 checkpoint=model_dir)
-        utils_v2.save_checkpoint({'epoch': epoch + 1,
-                               'state_dict': model2.state_dict(),
-                               'optim_dict': optimizer.state_dict()},
-                                 is_best=is_best+1,
-                                 checkpoint=model_dir)
+                              is_best=is_best,
+                              checkpoint=model_dir)
         
         # save accuracy / loss to array for plot
         train_acc_series.append(train_metrics['accuracy'])
@@ -148,12 +139,12 @@ def train_and_evaluate(model, model2, train_dataloader, val_dataloader, optimize
             # Save best val metrics in a json file in the model directory
             best_json_path = os.path.join(
                 model_dir, "metrics_val_best_weights.json")
-            utils_v2.save_dict_to_json(val_metrics, best_json_path)
+            utils.save_dict_to_json(val_metrics, best_json_path)
         
         # Save latest val metrics in a json file in the model directory
         last_json_path = os.path.join(
             model_dir, "metrics_val_last_weights.json")
-        utils_v2.save_dict_to_json(val_metrics, last_json_path)
+        utils.save_dict_to_json(val_metrics, last_json_path)
         print('******************************************')
     
     # plot visualized performance
@@ -162,6 +153,16 @@ def train_and_evaluate(model, model2, train_dataloader, val_dataloader, optimize
     # save best validation F1 score plot
     visualize.plot_individual_label_f1score(best_val_metrics)
 
+# load the class label
+# file_name = 'categories_places365.txt'
+# if not os.access(file_name, os.W_OK):
+#     synset_url = 'https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt'
+#     os.system('wget ' + synset_url)
+# classes = list()
+# with open(file_name) as class_file:
+#     for line in class_file:
+#         classes.append(line.strip().split(' ')[0][3:])
+# classes = tuple(classes)
 
 dict = {'apartment': 0, 'church': 1, 'garage': 2, 'house': 3, 'industrial': 4, 'officebuilding': 5, 'retail': 6,
         'roof': 7}
@@ -172,14 +173,16 @@ if __name__ == '__main__':
     json_path = os.path.join(args.model_dir, 'params.json')
     assert os.path.isfile(
         json_path), "No json configuration file found at {}".format(json_path)
-    params = utils_v2.Params(json_path)
+    params = utils.Params(json_path)
     
     # true if use GPU
-    params.cuda = torch.cuda.is_available()
-    params.alpha = 0.6
+    params.cuda = True
+
+    # turn alpha (a*L1 + (1-a)*L2)
+    params.alpha = 0.7
     
     # Set the logger
-    utils_v2.set_logger(os.path.join(args.model_dir, 'train.log'))
+    utils.set_logger(os.path.join(args.model_dir, 'train.log'))
     logging.info("Loading the datasets...")
 
     # load data
@@ -195,19 +198,18 @@ if __name__ == '__main__':
 
     # change CNN architecture
     model = net.resnet50(params, 8).to(device)
-    model2 = net.resnet50(params, 8).to(device)
     # model = net.vgg16(params, 8).to(device)
+    # model = torch.hub.load('pytorch/vision:v0.6.0', 'vgg16', pretrained=False).to(device)
     # model = torch.nn.DataParallel(model)
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=False).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=params.learning_rate)
-    optimizer2 = torch.optim.Adam(model2.parameters(), lr=params.learning_rate)
     criterion = torch.nn.CrossEntropyLoss()
     metrics = net.metrics
     
 
     logging.info("Starting training for {} epoch(s)".format(params.num_epochs))
-    train_and_evaluate(model, model2, train_dl, val_dl, optimizer, optimizer2, criterion, metrics, params, args.model_dir,
+    train_and_evaluate(model, train_dl, val_dl, optimizer, criterion, metrics, params, args.model_dir,
                     args.restore_file)
 
 

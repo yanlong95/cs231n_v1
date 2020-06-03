@@ -7,24 +7,22 @@ import os
 import numpy as np
 import torch
 from torch.autograd import Variable
-import utils_v2
+import utils
 import model_v4 as net
 import data_loader_v4 as data_loader
 import visualize
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', default='dataset/full_data',
+parser.add_argument('--data_dir', default='dataset/small_region_data',
                     help="Directory containing the dataset")
 parser.add_argument('--model_dir', default='model',
                     help="Directory containing params.json")
 parser.add_argument('--restore_file', default='best', help="name of the file in --model_dir \
                      containing weights to load")
-parser.add_argument('--restore_file2', default='best2', help="name of the file in --model_dir \
-                     containing weights to load")
 
 
-def evaluate(model, model2, critierion, dataloader, metrics, params):
+def evaluate(model, critierion, dataloader, metrics, params):
     """Evaluate the model on `num_steps` batches.
 
     Args:
@@ -53,15 +51,14 @@ def evaluate(model, model2, critierion, dataloader, metrics, params):
         data_batch, labels_type_batch, labels_region_batch = Variable(data_batch), Variable(labels_type_batch), Variable(labels_region_batch)
 
         # compute model output
-        output_type_batch = model(data_batch)
-        output_region_batch = model2(data_batch)
+        output_type_batch, output_region_batch = model(data_batch)
         loss1 = critierion(output_type_batch, labels_type_batch)
         loss2 = critierion(output_region_batch, labels_region_batch)
-        loss = params.alpha * loss1 + (1-params.alpha) * loss2
+        loss = params.alpha * loss1 + (1 - params.alpha) * loss2
 
         # extract data from torch Variable, move to cpu, convert to numpy arrays
         output_type_batch = output_type_batch.data.cpu().numpy()
-        labels_region_batch = labels_region_batch.data.cpu().numpy()
+        labels_type_batch = labels_type_batch.data.cpu().numpy()
 
         # compute all metrics on this batch
         summary_batch = {metric: metrics[metric](output_type_batch, labels_type_batch)
@@ -94,18 +91,18 @@ if __name__ == '__main__':
     json_path = os.path.join(args.model_dir, 'params.json')
     assert os.path.isfile(
         json_path), "No json configuration file found at {}".format(json_path)
-    params = utils_v2.Params(json_path)
+    params = utils.Params(json_path)
 
     # use GPU if available
     params.cuda = torch.cuda.is_available()     # use GPU is available
 
     # Set the random seed for reproducible experiments
-    torch.manual_seed(230)
-    if params.cuda:
-        torch.cuda.manual_seed(230)
+    # torch.manual_seed(230)
+    # if params.cuda:
+    #     torch.cuda.manual_seed(230)
 
     # Get the logger
-    utils_v2.set_logger(os.path.join(args.model_dir, 'evaluate.log'))
+    utils.set_logger(os.path.join(args.model_dir, 'evaluate.log'))
 
     # Create the input data pipeline
     logging.info("Creating the dataset...")
@@ -117,11 +114,10 @@ if __name__ == '__main__':
     logging.info("- done.")
 
     # Define the model
+    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     # model = torch.hub.load('pytorch/vision:v0.6.0', 'resnet50', pretrained=False).to(device)
-    model = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
-    model2 = net.resnet50(params, 8).cuda() if params.cuda else net.resnet50(params, 8)
 
     critierion = torch.nn.CrossEntropyLoss()
     metrics = net.metrics
@@ -129,16 +125,14 @@ if __name__ == '__main__':
     logging.info("Starting evaluation")
 
     # Reload weights from the saved file
-    utils_v2.load_checkpoint(os.path.join(
+    utils.load_checkpoint(os.path.join(
         args.model_dir, args.restore_file + '.pth.tar'), model)
-    utils_v2.load_checkpoint(os.path.join(
-        args.model_dir, args.restore_file2 + '.pth.tar'), model2)
 
     # Evaluate
-    test_metrics = evaluate(model, model2, critierion, test_dl, metrics, params)
+    test_metrics = evaluate(model, critierion, test_dl, metrics, params)
     
     visualize.plot_individual_label_f1score(test_metrics)
     
     save_path = os.path.join(
         args.model_dir, "metrics_test_{}.json".format(args.restore_file))
-    utils_v2.save_dict_to_json(test_metrics, save_path)
+    utils.save_dict_to_json(test_metrics, save_path)
